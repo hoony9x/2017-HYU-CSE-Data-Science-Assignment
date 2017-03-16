@@ -17,11 +17,13 @@
 #include <set>
 #include <functional>
 #include <fstream>
+#include <iomanip>
 
 using namespace std;
 
 vector< set<int> > getTransactions(string &input_path);
-void processAprioriAlgorithm(double &min_support, vector< set<int> > &Transactions, string &output_path);
+map< set<int>, int > generateFrequentSets(double &min_support, vector< set<int> > &Transactions);
+void putAssociationRules(map< set<int>, int > &freq_sets, int num_of_transactions, string &output_path);
 
 int main(int argc, char *argv[]) {
     if(argc != 4) {
@@ -34,7 +36,8 @@ int main(int argc, char *argv[]) {
     string output_path = argv[3];
     
     vector< set<int> > Transactions = getTransactions(input_path);
-    processAprioriAlgorithm(min_support, Transactions, output_path);
+    map< set<int>, int > freq_sets = generateFrequentSets(min_support, Transactions);
+    putAssociationRules(freq_sets, (int)Transactions.size(), output_path);
     
     return 0;
 }
@@ -65,7 +68,7 @@ vector< set<int> > getTransactions(string &input_path) {
     return Transactions;
 }
 
-void processAprioriAlgorithm(double &min_support, vector< set<int> > &Transactions, string &output_path) {
+map< set<int>, int > generateFrequentSets(double &min_support, vector< set<int> > &Transactions) {
     vector< map< set<int>, int> > L;
     L.resize(2);
     
@@ -182,5 +185,76 @@ void processAprioriAlgorithm(double &min_support, vector< set<int> > &Transactio
         }
     }
     
-    int stop = 0;
+    map< set<int>, int > freq_sets;
+    for(auto &l_elem: L) {
+        for(auto &s_elem: l_elem) {
+            freq_sets.insert(s_elem);
+        }
+    }
+    
+    return freq_sets;
+}
+
+void putAssociationRules(map< set<int>, int > &freq_sets, int num_of_transactions, string &output_path) {
+    
+    auto getAllSubset = [](const set<int> &S) {
+        set< set<int> > subsets;
+        
+        for(auto &item: S) {
+            for(auto &inner_set: subsets) {
+                set<int> temp_s(inner_set);
+                temp_s.insert(item);
+                
+                subsets.insert(temp_s);
+            }
+            set<int> temp_s2;
+            temp_s2.insert(item);
+            subsets.insert(temp_s2);
+        }
+        
+        return subsets;
+    };
+    
+    ofstream ofs(output_path, ofstream::out);
+    ofs << setprecision(2) << fixed;
+    
+    for(auto &each_set: freq_sets) {
+        if(each_set.first.size() < 2) {
+            continue;
+        }
+        
+        set< set<int> > subsets = getAllSubset(each_set.first);
+        subsets.erase(each_set.first);
+        
+        for(auto &item_set: subsets) {
+            set<int> associative_set(each_set.first);
+            for(auto &elem: item_set) {
+                associative_set.erase(elem);
+            }
+            
+            string item_set_format = "{";
+            for(auto &elem: item_set) {
+                item_set_format += to_string(elem);
+                item_set_format += ",";
+            }
+            item_set_format.pop_back();
+            item_set_format.push_back('}');
+            
+            string associative_set_format = "{";
+            for(auto &elem: associative_set) {
+                associative_set_format += to_string(elem);
+                associative_set_format += ",";
+            }
+            associative_set_format.pop_back();
+            associative_set_format.push_back('}');
+            
+            double support_v = (double)each_set.second / (double)num_of_transactions * 100.0;
+            double confidence_v = (double)each_set.second / (double)freq_sets[item_set] * 100.0;
+            
+            ofs << item_set_format << '\t' << associative_set_format << '\t';
+            ofs << support_v << '\t' << confidence_v << endl;
+        }
+    }
+    
+    ofs.close();
 }
