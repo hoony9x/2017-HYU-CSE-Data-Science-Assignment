@@ -66,42 +66,42 @@ vector< set<int> > getTransactions(string &input_path) {
 }
 
 void processAprioriAlgorithm(double &min_support, vector< set<int> > &Transactions, string &output_path) {
-    
-    vector< set< set<int> > > L;
+    vector< map< set<int>, int> > L;
     L.resize(2);
     
-    // Initialize candidates for frequent 1-itemsets
-    set<int> C;
-    for(auto &transaction: Transactions) {
-        for(auto &elem: transaction) {
-            C.insert(elem);
-        }
-    }
-    
-    // Build frequent 1-itemsets
-    for(auto &elem: C) {
-        int count_v = 0;
-        
-        for(auto &transaction: Transactions) {
-            if(transaction.find(elem) != transaction.end()) {
-                count_v++;
+    // find frequent 1-itemsets
+    for(auto &trans: Transactions) {
+        for(auto &t_elem: trans) {
+            set<int> temp_S;
+            temp_S.insert(t_elem);
+            
+            for(auto &s_elem: temp_S) {
+                int count_v = 0;
+                
+                for(auto &transaction: Transactions) {
+                    if(transaction.find(s_elem) != transaction.end()) {
+                        count_v++;
+                    }
+                }
+                
+                if((double)count_v / (double)Transactions.size() * 100.0 >= min_support) {
+                    if(L[1].find(temp_S) == L[1].end()) {
+                        L[1].insert(pair< set<int>, int >(temp_S, 1));
+                    }
+                    else {
+                        L[1][temp_S]++;
+                    }
+                }
             }
         }
-        
-        if((double)count_v / (double)Transactions.size() * 100.0 >= min_support) {
-            set<int> temp_set;
-            
-            temp_set.insert(elem);
-            L[1].insert(temp_set);
-        }
     }
     
-    auto has_infrequent_subset = [](set<int> &C, set< set<int> > &previous_L) {
+    auto has_infrequent_subset = [](const set<int> &C, const map< set<int>, int > &prev_L) {
         for(auto &elem: C) {
-            set<int> temp_set(C.begin(), C.end());
+            set<int> temp_set(C);
             temp_set.erase(elem);
             
-            if(previous_L.find(temp_set) == previous_L.end()) {
+            if(prev_L.find(temp_set) == prev_L.end()) {
                 return true;
             }
         }
@@ -109,19 +109,20 @@ void processAprioriAlgorithm(double &min_support, vector< set<int> > &Transactio
         return false;
     };
     
-    auto apriori_gen = [&has_infrequent_subset](set< set<int> > &previous_L) {
+    auto apriori_gen = [&has_infrequent_subset](const map< set<int>, int > &prev_L) {
         set< set<int> > Candidate_Set;
-        for(auto &l1: previous_L) {
-            for(auto &l2: previous_L) {
+        
+        for(auto &l1: prev_L) {
+            for(auto &l2: prev_L) {
                 if(l1 == l2) {
                     continue;
                 }
                 
-                set<int> new_set(l1);
-                new_set.insert(l2.begin(), l2.end());
+                set<int> new_set(l1.first);
+                new_set.insert(l2.first.begin(), l2.first.end());
                 
-                if(new_set.size() == l1.size() + 1) {
-                    if(has_infrequent_subset(new_set, previous_L) == false) {
+                if(new_set.size() == l1.first.size() + 1) {
+                    if(has_infrequent_subset(new_set, prev_L) == false) {
                         Candidate_Set.insert(new_set);
                     }
                 }
@@ -131,10 +132,55 @@ void processAprioriAlgorithm(double &min_support, vector< set<int> > &Transactio
         return Candidate_Set;
     };
     
-    for(auto k = 2; ; k++) {
-        set< set<int> > Candidate_k = apriori_gen(L[k - 1]);
-        for(auto &transaction: Transactions) {
+    auto chk_if_subset = [](const set<int> &super_set, const set<int> &sub_set) {
+        if(super_set.size() < sub_set.size()) {
+            return false;
+        }
+        else if(super_set == sub_set) {
+            return true;
+        }
+        else {
+            for(auto &elem: sub_set) {
+                if(super_set.find(elem) == super_set.end()) {
+                    return false;
+                }
+            }
             
+            return true;
+        }
+    };
+    
+    for(int k = 2; ; k++) {
+        set< set<int> > Candidate_Set = apriori_gen(L[k - 1]);
+        
+        map< set<int>, int > new_L;
+        for(auto &trans: Transactions) {
+            for(auto &candidate: Candidate_Set) {
+                if(chk_if_subset(trans, candidate) == true) {
+                    if(new_L.find(candidate) == new_L.end()) {
+                        new_L.insert(pair< set<int>, int >(candidate, 1));
+                    }
+                    else {
+                        new_L[candidate]++;
+                    }
+                }
+                
+            }
+        }
+        
+        L.push_back(new_L);
+        
+        for(auto &l_elem: new_L) {
+            if((double)l_elem.second / (double)Transactions.size() * 100.0 < min_support) {
+                L[k].erase(l_elem.first);
+            }
+        }
+        
+        if(L[k].empty()) {
+            L.pop_back();
+            break;
         }
     }
+    
+    int stop = 0;
 }
