@@ -19,6 +19,8 @@
 #include <fstream>
 #include <iomanip>
 
+#include <cstdlib>
+
 using namespace std;
 
 vector< set<int> > getTransactions(string &input_path);
@@ -35,23 +37,34 @@ int main(int argc, char *argv[]) {
     string input_path = argv[2];
     string output_path = argv[3];
     
+    /* Read transaction data from input file. */
     vector< set<int> > Transactions = getTransactions(input_path);
+    
+    /* Generate frequent sets. */
     map< set<int>, int > freq_sets = generateFrequentSets(min_support, Transactions);
+    
+    /* Generate association rules and Write into output file. */
     putAssociationRules(freq_sets, (int)Transactions.size(), output_path);
     
     return 0;
 }
 
+/* Read transaction data from input file. */
 vector< set<int> > getTransactions(string &input_path) {
+    /* Open input file. */
     ifstream ifs(input_path, ifstream::in);
     
+    /* Transaction data will be stored here. */
     vector< set<int> > Transactions;
+    
+    /* Read each line from input file until we meet EOF. */
     while(ifs.eof() == false) {
         set<int> each_transaction;
         
         string S;
         getline(ifs, S);
         
+        /* Parsing transaction data. */
         int pos = 0;
         string delimiter = "\t";
         while((pos = (int)S.find(delimiter)) != string::npos) {
@@ -60,50 +73,58 @@ vector< set<int> > getTransactions(string &input_path) {
             S.erase(0, pos + delimiter.length());
         }
         each_transaction.insert(stoi(S));
+        
+        /* Insert into transaction list. */
         Transactions.push_back(each_transaction);
     }
     
+    /* Close input file. */
     ifs.close();
     
     return Transactions;
 }
 
+/* Generate frequent sets. */
 map< set<int>, int > generateFrequentSets(double &min_support, vector< set<int> > &Transactions) {
     vector< map< set<int>, int> > L;
     L.resize(2);
     
-    // find frequent 1-itemsets
+    /* find frequent 1-itemsets */
     for(auto &trans: Transactions) {
         for(auto &t_elem: trans) {
             set<int> temp_S;
             temp_S.insert(t_elem);
             
-            for(auto &s_elem: temp_S) {
-                int count_v = 0;
-                
-                for(auto &transaction: Transactions) {
-                    if(transaction.find(s_elem) != transaction.end()) {
-                        count_v++;
-                    }
+            /* Check if already counted before. */
+            if(L[1].find(temp_S) != L[1].end()) {
+                continue;
+            }
+            
+            /* Count for each element. */
+            int count_v = 0;
+            
+            /* Search all transaction data and increase count value if target element exists. */
+            for(auto &transaction: Transactions) {
+                if(transaction.find(t_elem) != transaction.end()) {
+                    count_v++;
                 }
-                
-                if((double)count_v / (double)Transactions.size() * 100.0 >= min_support) {
-                    if(L[1].find(temp_S) == L[1].end()) {
-                        L[1].insert(pair< set<int>, int >(temp_S, 1));
-                    }
-                    else {
-                        L[1][temp_S]++;
-                    }
-                }
+            }
+            
+            /* If support value of current element is not less than min_support, add to L[1]. */
+            if((double)count_v / (double)Transactions.size() * 100.0 >= min_support) {
+                L[1].insert(pair< set<int>, int >(temp_S, count_v));
             }
         }
     }
     
-    auto has_infrequent_subset = [](const set<int> &C, const map< set<int>, int > &prev_L) {
-        for(auto &elem: C) {
-            set<int> temp_set(C);
+    /* Function for check if target set has an infrequent set. */
+    auto hasInfreqSubset = [](const set<int> &new_set, const map< set<int>, int > &prev_L) -> bool {
+        for(auto &elem: new_set) {
+            /* Create temporary set for checking for infrequent set. Iteratively erase one element. */
+            set<int> temp_set(new_set);
             temp_set.erase(elem);
             
+            /* If temporary set is frequent, it must be in L. Otherwise, it is an infrequent set. */
             if(prev_L.find(temp_set) == prev_L.end()) {
                 return true;
             }
@@ -112,38 +133,50 @@ map< set<int>, int > generateFrequentSets(double &min_support, vector< set<int> 
         return false;
     };
     
-    auto apriori_gen = [&has_infrequent_subset](const map< set<int>, int > &prev_L) {
-        set< set<int> > Candidate_Set;
+    /* Generate candidate set for next L. */
+    auto aprioriGenCandidate = [&hasInfreqSubset](const map< set<int>, int > &prev_L) -> set< set<int> > {
+        set< set<int> > candidate_set;
         
+        /* Generate candidate. */
         for(auto &l1: prev_L) {
             for(auto &l2: prev_L) {
+                /* We don't have to doing cartesian product for same set. */
                 if(l1 == l2) {
                     continue;
                 }
                 
+                /* Doing cartesian product. */
                 set<int> new_set(l1.first);
                 new_set.insert(l2.first.begin(), l2.first.end());
                 
+                /* Check the size of new set and it does not contain infrequent subset. */
                 if(new_set.size() == l1.first.size() + 1) {
-                    if(has_infrequent_subset(new_set, prev_L) == false) {
-                        Candidate_Set.insert(new_set);
+                    if(hasInfreqSubset(new_set, prev_L) == false) {
+                        candidate_set.insert(new_set);
                     }
                 }
             }
         }
         
-        return Candidate_Set;
+        return candidate_set;
     };
     
-    auto chk_if_subset = [](const set<int> &super_set, const set<int> &sub_set) {
+    /* Check if 'sub_set' is subset of 'super_set'. */
+    auto checkSubset = [](const set<int> &super_set, const set<int> &sub_set) -> bool {
         if(super_set.size() < sub_set.size()) {
+            /* Size of subset can't be bigger than superset! */
             return false;
         }
         else if(super_set == sub_set) {
+            /* Same set! */
             return true;
         }
         else {
             for(auto &elem: sub_set) {
+                /*
+                 * If element in 'sub_set' is not int 'super_set',
+                 * 'sub_set' is not subset of 'super_set'!
+                 */
                 if(super_set.find(elem) == super_set.end()) {
                     return false;
                 }
@@ -154,12 +187,12 @@ map< set<int>, int > generateFrequentSets(double &min_support, vector< set<int> 
     };
     
     for(int k = 2; ; k++) {
-        set< set<int> > Candidate_Set = apriori_gen(L[k - 1]);
+        set< set<int> > candidate_set = aprioriGenCandidate(L[k - 1]);
         
         map< set<int>, int > new_L;
         for(auto &trans: Transactions) {
-            for(auto &candidate: Candidate_Set) {
-                if(chk_if_subset(trans, candidate) == true) {
+            for(auto &candidate: candidate_set) {
+                if(checkSubset(trans, candidate) == true) {
                     if(new_L.find(candidate) == new_L.end()) {
                         new_L.insert(pair< set<int>, int >(candidate, 1));
                     }
@@ -195,9 +228,10 @@ map< set<int>, int > generateFrequentSets(double &min_support, vector< set<int> 
     return freq_sets;
 }
 
+/* Generate association rules and Write into output file. */
 void putAssociationRules(map< set<int>, int > &freq_sets, int num_of_transactions, string &output_path) {
     
-    auto getAllSubset = [](const set<int> &S) {
+    auto getAllSubset = [](const set<int> &S) -> set< set<int> > {
         set< set<int> > subsets;
         
         for(auto &item: S) {
@@ -251,8 +285,13 @@ void putAssociationRules(map< set<int>, int > &freq_sets, int num_of_transaction
             double support_v = (double)each_set.second / (double)num_of_transactions * 100.0;
             double confidence_v = (double)each_set.second / (double)freq_sets[item_set] * 100.0;
             
+            // To avoid Banker's Rounding, I use custom rounding macro for this project.
+            auto customRoundToThree = [](double X) -> double {
+                return ((double)((int)((X) * 100.0 + 0.5))) / 100.0;
+            };
+            
             ofs << item_set_format << '\t' << associative_set_format << '\t';
-            ofs << support_v << '\t' << confidence_v << endl;
+            ofs << customRoundToThree(support_v) << '\t' << customRoundToThree(confidence_v) << endl;
         }
     }
     
