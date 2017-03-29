@@ -304,7 +304,7 @@ void putAssociationRules(map< set<int>, int > &freq_sets, int num_of_transaction
             };
             
             ofs << item_set_format << '\t' << associative_set_format << '\t';
-            ofs << customRoundToThree(support_v) << '\t' << customRoundToThree(confidence_v) << endl;
+            ofs << customRoundToThree(support_v) << '\t' << customRoundToThree(confidence_v) << '\n';
         }
     }
     
