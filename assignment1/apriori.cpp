@@ -118,10 +118,10 @@ map< set<int>, int > generateFrequentSets(double &min_support, vector< set<int> 
     }
     
     /* Function for check if target set has an infrequent set. */
-    auto hasInfreqSubset = [](const set<int> &new_set, const map< set<int>, int > &prev_L) -> bool {
-        for(auto &elem: new_set) {
+    auto hasInfreqSubset = [](const set<int> &target_set, const map< set<int>, int > &prev_L) -> bool {
+        for(auto &elem: target_set) {
             /* Create temporary set for checking for infrequent set. Iteratively erase one element. */
-            set<int> temp_set(new_set);
+            set<int> temp_set(target_set);
             temp_set.erase(elem);
             
             /* If temporary set is frequent, it must be in L. Otherwise, it is an infrequent set. */
