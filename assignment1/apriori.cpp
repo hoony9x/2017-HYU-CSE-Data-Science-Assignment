@@ -187,8 +187,10 @@ map< set<int>, int > generateFrequentSets(double &min_support, vector< set<int> 
     };
     
     for(int k = 2; ; k++) {
+        /* Get candidate set. */
         set< set<int> > candidate_set = aprioriGenCandidate(L[k - 1]);
         
+        /* Build L */
         map< set<int>, int > new_L;
         for(auto &trans: Transactions) {
             for(auto &candidate: candidate_set) {
@@ -204,20 +206,24 @@ map< set<int>, int > generateFrequentSets(double &min_support, vector< set<int> 
             }
         }
         
+        /* Add new L into list of L (L[k]) -> This is not completed L! */
         L.push_back(new_L);
         
+        /* If there is infrequent set in L[k], remove it. */
         for(auto &l_elem: new_L) {
             if((double)l_elem.second / (double)Transactions.size() * 100.0 < min_support) {
                 L[k].erase(l_elem.first);
             }
         }
         
+        /* If frequent set is noy generated(that is, L[k] is empty), escape loop. */
         if(L[k].empty()) {
             L.pop_back();
             break;
         }
     }
     
+    /* Store all frequent sets into single map data structure. */
     map< set<int>, int > freq_sets;
     for(auto &l_elem: L) {
         for(auto &s_elem: l_elem) {
@@ -231,6 +237,7 @@ map< set<int>, int > generateFrequentSets(double &min_support, vector< set<int> 
 /* Generate association rules and Write into output file. */
 void putAssociationRules(map< set<int>, int > &freq_sets, int num_of_transactions, string &output_path) {
     
+    /* Generate all subset except null set. */
     auto getAllSubset = [](const set<int> &S) -> set< set<int> > {
         set< set<int> > subsets;
         
@@ -249,6 +256,7 @@ void putAssociationRules(map< set<int>, int > &freq_sets, int num_of_transaction
         return subsets;
     };
     
+    /* Open output file. */
     ofstream ofs(output_path, ofstream::out);
     ofs << setprecision(2) << fixed;
     
@@ -256,6 +264,11 @@ void putAssociationRules(map< set<int>, int > &freq_sets, int num_of_transaction
         if(each_set.first.size() < 2) {
             continue;
         }
+        
+        /* 
+         * Association Rule
+         * {each_set} => {associative_set}
+         */
         
         set< set<int> > subsets = getAllSubset(each_set.first);
         subsets.erase(each_set.first);
@@ -285,7 +298,7 @@ void putAssociationRules(map< set<int>, int > &freq_sets, int num_of_transaction
             double support_v = (double)each_set.second / (double)num_of_transactions * 100.0;
             double confidence_v = (double)each_set.second / (double)freq_sets[item_set] * 100.0;
             
-            // To avoid Banker's Rounding, I use custom rounding macro for this project.
+            /* To avoid Banker's Rounding, I use custom rounding macro for this project. */
             auto customRoundToThree = [](double X) -> double {
                 return ((double)((int)((X) * 100.0 + 0.5))) / 100.0;
             };
