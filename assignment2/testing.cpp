@@ -38,8 +38,34 @@ void createTestResult(Node *decision_tree, vector< vector< pair<string, string> 
             string attr_name = N->name;
             string value = test_data[attr_name];
             
-            Node *next = (N->next_list)[value];
-            return testFunction(next, test_data);
+            if((N->next_list).find(value) == (N->next_list).end()) {
+                map<string, int> chk;
+                for(auto &elem: N->next_list) {
+                    string val = elem.first;
+                    if(chk.find(val) == chk.end()) {
+                        chk.insert(make_pair(val, 1));
+                    }
+                    else {
+                        chk[val]++;
+                    }
+                }
+                
+                int max_v = 0;
+                string selected;
+                for(auto &elem: chk){
+                    if(max_v < elem.second) {
+                        max_v = elem.second;
+                        selected = elem.first;
+                    }
+                }
+                
+                Node *next = (N->next_list)[selected];
+                return testFunction(next, test_data);
+            }
+            else {
+                Node *next = (N->next_list)[value];
+                return testFunction(next, test_data);
+            }
         }
     };
     
