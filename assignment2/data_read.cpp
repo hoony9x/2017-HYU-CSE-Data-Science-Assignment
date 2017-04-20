@@ -8,8 +8,9 @@
 
 #include "assignment2.hpp"
 
-string deleteCarrageReturn(string S);
+string deleteCarrageReturn(string);
 
+/* Get training data from training data path. */
 vector< vector< pair<string, string> > > getTrainingData(string &train_path) {
     ifstream ifs(train_path, ifstream::in);
     
@@ -65,6 +66,7 @@ vector< vector< pair<string, string> > > getTrainingData(string &train_path) {
     return training_data;
 }
 
+/* Get test data from test data path. */
 vector< vector< pair<string, string> > > getTestData(string &test_path) {
     ifstream ifs(test_path, ifstream::in);
     
@@ -120,6 +122,7 @@ vector< vector< pair<string, string> > > getTestData(string &test_path) {
     return test_data;
 }
 
+/* Given data file has carrage return! (I think that files are generated in Windows OS.) This function removes carrage return ('\r'). */
 string deleteCarrageReturn(string S) {
     string carrage_return = "\r";
     auto pos = string::npos;

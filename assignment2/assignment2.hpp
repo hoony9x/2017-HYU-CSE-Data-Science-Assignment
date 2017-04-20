@@ -10,34 +10,31 @@
 #define assignment2_hpp
 
 #include <iostream>
-#include <queue>
-#include <stack>
+#include <fstream>
 #include <vector>
 #include <algorithm>
 #include <string>
-#include <limits>
 #include <map>
 #include <set>
 #include <functional>
-#include <fstream>
-#include <iomanip>
 #include <tuple>
+#include <chrono>
+#include <random>
 
 #include <cmath>
 
 using namespace std;
 
+/* This is data structure for decision tree. */
 class Node {
 public:
-    string name;
-    map<string, Node*> next_list;
+    string name; /* This is attribute name if 'next_list' is empty. Otherwise, this is class label. */
+    map<string, Node* > next_list; /* Branch for each attribute value. (If this node is not a leaf node.)  */
 };
 
-vector< vector< pair<string, string> > > getTrainingData(string &train_path);
-vector< vector< pair<string, string> > > getTestData(string &test_path);
-
-Node* processLearning(vector< vector< pair<string, string> > > &training_data_list);
-
-void createTestResult(Node *decision_tree, vector< vector< pair<string, string> > > &test_data_list, string result_path, string class_name);
+vector< vector< pair<string, string> > > getTrainingData(string &);
+vector< vector< pair<string, string> > > getTestData(string &);
+Node* processLearning(vector< vector< pair<string, string> > > &);
+void createTestResult(Node *decision_tree, vector< vector< pair<string, string> > > &, string, string);
 
 #endif /* assignment2_hpp */

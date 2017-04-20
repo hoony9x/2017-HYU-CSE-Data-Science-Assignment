@@ -8,18 +8,29 @@
 
 #include "assignment2.hpp"
 
-Node* learn(string class_name, vector< map<string, string> > training_data, set<string> attr_list, map<string, set<string> > &orig_attr_list);
+Node* learn(string, vector< map<string, string> >, set<string>, map<string, set<string> > &);
 
-pair<bool, string> checkIfPure(string class_name, vector< map<string, string> > &training_data);
-string getMajorityAttrVal(string class_name, vector< map<string, string> > &training_data);
-string selectAttribute(string class_name, vector< map<string, string> > &training_data, set<string> &attr_list);
+string selectAttributeByGiniIdx(string, vector< map<string, string> > &, set<string> &);
+string selectAttributeByGainRatio(string, vector< map<string, string> > &, set<string> &);
 
+pair<bool, string> checkIfPure(string, vector< map<string, string> > &);
+pair<string, bool> getMajorityAttrVal(string, vector< map<string, string> > &);
+
+double getInfo(string, vector< map<string, string> > &);
+double getSpecificInfo(string, vector< map<string, string> > &, string);
+double getGain(string, vector< map<string, string> > &, string);
+double splitInfo(vector< map<string, string> > &, string);
+double getGainRatio(string, vector< map<string, string> > &, string);
+
+/* Initiate decision tree building process. */
 Node* processLearning(vector< vector< pair<string, string> > > &training_data_list) {
-    string class_name = training_data_list.back().back().first;
+    string class_name = training_data_list.back().back().first; /* Get class name (target name) */
     
-    vector< map<string, string> > training_data;
-    set<string> attr_list;
-    map<string, set<string> > orig_attr_list;
+    vector< map<string, string> > training_data; /* Convert data structure into map. */
+    set<string> attr_list; /* Get attribute name list. */
+    map<string, set<string> > orig_attr_list; /* Get values of each attribute name. */
+    
+    /* Convert training data structure into map data structure, and get attribute name list and its values. */
     for(auto &list: training_data_list) {
         map<string, string> each_map;
         for(auto &elem: list) {
@@ -39,101 +50,65 @@ Node* processLearning(vector< vector< pair<string, string> > > &training_data_li
     }
     attr_list.erase(class_name);
     
+    /* Start building decision tree and return it. */
     return learn(class_name, training_data, attr_list, orig_attr_list);
 }
 
-string selectAttribute(string class_name, vector< map<string, string> > &training_data, set<string> &attr_list) {
+/* Decision tree building process. This function generates each node. */
+Node* learn(string class_name, vector< map<string, string> > dataset, set<string> attr_list, map<string, set<string> > &orig_attr_list) {
+    Node *N = new Node;
     
-    auto getInfo = [&class_name](vector< map<string, string> > &training_data) -> double {
-        map<string, int> cnt;
-        for(auto &elem: training_data) {
-            string val = elem[class_name];
-            if(cnt.find(val) == cnt.end()) {
-                cnt.insert(make_pair(val, 1));
-            }
-            else {
-                cnt[val]++;
-            }
-        }
-        
-        double result = 0.0;
-        for(auto &elem: cnt) {
-            double p = (double)elem.second / (double)training_data.size();
-            result += (-p * log2(p));
-        }
-        
-        return result;
-    };
+    /* Check if current dataset is pure. */
+    auto chk_if_pure = checkIfPure(class_name, dataset);
+    if(chk_if_pure.first == true) {
+        N->name = chk_if_pure.second;
+        return N;
+    }
     
-    auto getSpecificInfo = [&getInfo](vector< map<string, string> > &training_data, string target) -> double {
-        map<string, int> cnt;
-        for(auto &elem: training_data) {
-            string val = elem[target];
-            if(cnt.find(val) == cnt.end()) {
-                cnt.insert(make_pair(val, 1));
-            }
-            else {
-                cnt[val]++;
+    /* Check if there is no more attribute name. */
+    if(attr_list.empty()) {
+        N->name = getMajorityAttrVal(class_name, dataset).first;
+        return N;
+    }
+    
+    /* Select attribute name using Gain Ratio. */
+    string selected_attr = selectAttributeByGainRatio(class_name, dataset, attr_list);
+    
+    /* Assign selected attribute name into node and delete it from attribute list. */
+    N->name = selected_attr;
+    attr_list.erase(selected_attr);
+    
+    /* Generate each branch belongs to attribute values */
+    for(auto &elem: orig_attr_list[selected_attr]) {
+        string value = elem; /* attribute value. */
+        
+        /* Get training data which attribute value match with it. */
+        vector< map<string, string> > domain;
+        for(auto &each_dataset: dataset) {
+            if(each_dataset[selected_attr] == value) {
+                domain.push_back(each_dataset);
             }
         }
         
-        double result = 0.0;
-        for(auto &elem: cnt) {
-            double p = (double)elem.second / (double)training_data.size();
+        /* If no data has been matched with attribute value, select class label using majority vote. */
+        if(domain.empty()) {
+            Node *next = new Node;
+            next->name = getMajorityAttrVal(class_name, dataset).first;
             
-            vector< map<string, string> > partial_data;
-            for(auto &data: training_data) {
-                if(elem.first == data[target]) {
-                    partial_data.push_back(data);
-                }
-            }
-            
-            p *= getInfo(partial_data);
-            result += p;
+            (N->next_list).insert(make_pair(value, next));
         }
-        
-        return result;
-    };
-    
-    auto splitInfo = [](vector< map<string, string> > &training_data, string target) -> double {
-        map<string, int> cnt;
-        for(auto &elem: training_data) {
-            string val = elem[target];
-            if(cnt.find(val) == cnt.end()) {
-                cnt.insert(make_pair(val, 1));
-            }
-            else {
-                cnt[val]++;
-            }
-        }
-        
-        double result = 0.0;
-        for(auto &elem: cnt) {
-            double p = (double)elem.second / (double)training_data.size();
-            result -= (p * log2(p));
-        }
-        
-        return result;
-    };
-    
-    auto getGainRatio = [&getInfo, &getSpecificInfo, &splitInfo](vector< map<string, string> > &training_data, string target) -> double {
-        double gain = getInfo(training_data) - getSpecificInfo(training_data, target);
-        return gain / splitInfo(training_data, target);
-    };
-    
-    string result;
-    double max_gain_ratio = 0.0;
-    for(auto &str: attr_list) {
-        double gain_ratio = getGainRatio(training_data, str);
-        if(gain_ratio > max_gain_ratio) {
-            max_gain_ratio = gain_ratio;
-            result = str;
+        else {
+            /* Generate subtree. */
+            Node *next = learn(class_name, domain, attr_list, orig_attr_list);
+            (N->next_list).insert(make_pair(value, next));
         }
     }
     
-    return result;
+    /* Return each node with its subtree. */
+    return N;
 }
 
+/* Check of given dataset is pure. */
 pair<bool, string> checkIfPure(string class_name, vector< map<string, string> > &training_data) {
     string value = training_data[0][class_name];
     for(auto i = 1; i < training_data.size(); i++) {
@@ -142,10 +117,13 @@ pair<bool, string> checkIfPure(string class_name, vector< map<string, string> > 
         }
     }
     
+    /* return with class label. */
     return make_pair(true, value);
 }
 
-string getMajorityAttrVal(string class_name, vector< map<string, string> > &training_data) {
+/* Get class label using majority vote. */
+pair<string, bool> getMajorityAttrVal(string class_name, vector< map<string, string> > &training_data) {
+    /* Count each attribute value. */
     map<string, int> chk;
     for(auto &elem: training_data) {
         string val = elem[class_name];
@@ -159,55 +137,121 @@ string getMajorityAttrVal(string class_name, vector< map<string, string> > &trai
     
     int max_v = 0;
     string result;
+    bool is_ambiguous = false;
+    
+    /* Select class label which has the biggest count value. */
     for(auto &elem: chk) {
         if(max_v < elem.second) {
             max_v = elem.second;
+            is_ambiguous = false;
             result = elem.first;
+        }
+        else if(max_v == elem.second) {
+            is_ambiguous = true;
+        }
+    }
+    
+    return make_pair(result, is_ambiguous);
+}
+
+/* Select attribute name using Gain Ratio. */
+string selectAttributeByGainRatio(string class_name, vector< map<string, string> > &training_data, set<string> &attr_list) {
+    string result;
+    double max_gain_ratio = 0.0;
+    for(auto &str: attr_list) {
+        double gain_ratio = getGainRatio(class_name, training_data, str);
+        
+        /* Select attribute which has the biggest gain ratio. */
+        if(gain_ratio > max_gain_ratio) {
+            max_gain_ratio = gain_ratio;
+            result = str;
         }
     }
     
     return result;
 }
 
-Node* learn(string class_name, vector< map<string, string> > training_data, set<string> attr_list, map<string, set<string> > &orig_attr_list) {
-    Node *N = new Node;
-    
-    auto check_if_pure = checkIfPure(class_name, training_data);
-    if(check_if_pure.first == true) {
-        N->name = check_if_pure.second;
-        return N;
+/* Get entropy. */
+double getInfo(string class_name, vector< map<string, string> > &training_data) {
+    map<string, int> cnt;
+    for(auto &elem: training_data) {
+        string val = elem[class_name];
+        if(cnt.find(val) == cnt.end()) {
+            cnt.insert(make_pair(val, 1));
+        }
+        else {
+            cnt[val]++;
+        }
     }
     
-    if(attr_list.empty()) {
-        N->name = getMajorityAttrVal(class_name, training_data);
-        return N;
+    double result = 0.0;
+    for(auto &elem: cnt) {
+        double p = (double)elem.second / (double)training_data.size();
+        result += (-p * log2(p));
     }
     
-    string selected_attr = selectAttribute(class_name, training_data, attr_list);
-    attr_list.erase(selected_attr);
+    return result;
+}
+
+/* Get entropy for specific attribute name (target) */
+double getSpecificInfo(string class_name, vector< map<string, string> > &training_data, string target) {
+    map<string, int> cnt;
+    for(auto &elem: training_data) {
+        string val = elem[target];
+        if(cnt.find(val) == cnt.end()) {
+            cnt.insert(make_pair(val, 1));
+        }
+        else {
+            cnt[val]++;
+        }
+    }
     
-    N->name = selected_attr;
-    for(auto &elem: orig_attr_list[selected_attr]) {
-        string value = elem;
+    double result = 0.0;
+    for(auto &elem: cnt) {
+        double p = (double)elem.second / (double)training_data.size();
         
-        vector< map<string, string> > domain;
-        for(auto &each_dataset: training_data) {
-            if(each_dataset[selected_attr] == value) {
-                domain.push_back(each_dataset);
+        vector< map<string, string> > partial_data;
+        for(auto &data: training_data) {
+            if(elem.first == data[target]) {
+                partial_data.push_back(data);
             }
         }
         
-        if(domain.empty()) {
-            Node *next = new Node;
-            next->name = getMajorityAttrVal(class_name, training_data);
-            
-            (N->next_list).insert(make_pair(value, next));
+        p *= getInfo(class_name, partial_data);
+        result += p;
+    }
+    
+    return result;
+}
+
+/* Get information gain. */
+double getGain(string class_name, vector< map<string, string> > &training_data, string target) {
+    return getInfo(class_name, training_data) - getSpecificInfo(class_name, training_data, target);
+}
+
+/* Get split info. */
+double splitInfo(vector< map<string, string> > &training_data, string target) {
+    map<string, int> cnt;
+    for(auto &elem: training_data) {
+        string val = elem[target];
+        if(cnt.find(val) == cnt.end()) {
+            cnt.insert(make_pair(val, 1));
         }
         else {
-            Node *next = learn(class_name, domain, attr_list, orig_attr_list);
-            (N->next_list).insert(make_pair(value, next));
+            cnt[val]++;
         }
     }
     
-    return N;
+    double result = 0.0;
+    for(auto &elem: cnt) {
+        double p = (double)elem.second / (double)training_data.size();
+        result -= (p * log2(p));
+    }
+    
+    return result;
+}
+
+/* Get gain ratio. */
+double getGainRatio(string class_name, vector< map<string, string> > &training_data, string target) {
+    return getGain(class_name, training_data, target) / splitInfo(training_data, target);
 }

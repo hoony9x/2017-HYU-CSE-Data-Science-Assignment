@@ -14,15 +14,16 @@ int main(int argc, char * argv[]) {
         return -1;
     }
     
-    string train_path = argv[1];
-    string test_path = argv[2];
-    string result_path = argv[3];
+    string train_path = argv[1]; /* train data input file path */
+    string test_path = argv[2]; /* test data input file path */
+    string result_path = argv[3]; /* result data output file path */
     
-    auto tranining_data = getTrainingData(train_path);
-    auto test_data = getTestData(test_path);
+    auto tranining_data = getTrainingData(train_path); /* Get training data. */
+    auto test_data = getTestData(test_path); /* Get test data. */
     
-    Node *decision_tree = processLearning(tranining_data);
-    createTestResult(decision_tree, test_data, result_path, tranining_data.back().back().first);
+    Node *decision_tree = processLearning(tranining_data); /* Generate decision tree using GainRatio. */
+    string class_name = tranining_data.back().back().first; /* Get class name from training data. (last column of each data tuple) */
+    createTestResult(decision_tree, test_data, result_path, class_name); /* Generate test result and write into result file. */
     
     return 0;
 }
