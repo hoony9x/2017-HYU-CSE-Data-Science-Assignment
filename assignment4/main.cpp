@@ -128,6 +128,7 @@ vector< tuple<int, int, int> > processPrediction(map<int, map<int, int> > &train
     }
     
     /* Set each user's average rating value into non-rated cell. */
+    /*
     for(auto i = 1; i <= max_user_id; i++) {
         for(auto j = 1; j <= max_item_id; j++) {
             if(is_rating_table_empty[i][j]) {
@@ -135,6 +136,7 @@ vector< tuple<int, int, int> > processPrediction(map<int, map<int, int> > &train
             }
         }
     }
+     */
     
     /* Similarity calculation function. */
     auto getSimilarity = [&rating_table, &is_rating_table_empty, &item_list](int user_x, int user_y) -> double {
@@ -179,90 +181,45 @@ vector< tuple<int, int, int> > processPrediction(map<int, map<int, int> > &train
         sort(similarity_list[i].rbegin(), similarity_list[i].rend());
     }
     
-    /*
-    for(auto &user_id: user_list_test) {
-        for(auto i = 1; i <= max_user_id; i++) {
-            if(user_id != i) {
-                double similarity = getSimilarity(user_id, i);
-                if(!isnan(similarity)) {
-                    similarity_list[user_id].push_back(make_pair(similarity, i));
-                }
-                else {
-                    similarity_list[user_id].push_back(make_pair(-1, i));
-                }
-            }
-        }
-        
-        sort(similarity_list[user_id].rbegin(), similarity_list[user_id].rend());
-    }
-     */
-    
-    auto predictRate = [&similarity_list, &rating_table, &user_avg_ratings](int user_id, int item_id) -> double {
-        double r_a = user_avg_ratings[user_id];
-        double final_predicted = 0.0;
-        int count_v = 0;
-        
-        for(auto i = 0; i < similarity_list[user_id].size(); i++) {
-            double predicted = r_a;
-            double numerator = 0.0, denominator = 0.0;
-            bool is_break = false;
-            
-            for(auto j = 0; j <= i; j++) {
-                double similarity = similarity_list[user_id][j].first;
-                if(similarity < 0.0) {
-                    is_break = true;
-                    break;
-                }
-                
-                int tg_user_id = similarity_list[user_id][j].second;
-                double r_b = user_avg_ratings[tg_user_id];
-                
-                denominator += (similarity * (rating_table[tg_user_id][item_id] - r_b));
-                numerator += similarity;
-            }
-            
-            if(is_break) {
+    auto determineNumK = [&similarity_list](int user_id) -> int {
+        int iteration_count = 0;
+        for(auto i = 0; i < (int)similarity_list[user_id].size(); i++) {
+            if(similarity_list[user_id][i].first < 0.0) {
+                iteration_count = i;
                 break;
             }
-            
-            predicted += (denominator / numerator);
-            final_predicted += predicted;
-            count_v++;
         }
-        
-        return final_predicted / (double)count_v;
+
+        return iteration_count;
     };
     
-    /*
-    auto predictRate = [&similarity_list, &rating_table, &user_avg_ratings, &test_data](int user_id, int item_id) -> double {
+    auto predictRate = [&similarity_list, &rating_table, &is_rating_table_empty, &user_avg_ratings](int user_id, int item_id, int k) -> double {
         double r_a = user_avg_ratings[user_id];
-        double diff = numeric_limits<double>::max();
-        double final_predicted = r_a;
-        double actual = (double)test_data[user_id][item_id];
-        
-        for(auto i = 0; i < similarity_list[user_id].size(); i++) {
-            double predicted = r_a;
-            double numerator = 0.0, denominator = 0.0;
-            
-            for(auto j = 0; j <= i; j++) {
-                double similarity = similarity_list[user_id][j].first;
-                double tg_user_id = similarity_list[user_id][j].second;
-                double r_b = user_avg_ratings[tg_user_id];
-                
-                denominator += (similarity * (rating_table[tg_user_id][item_id] - r_b));
-                numerator += similarity;
-            }
-            
-            predicted += (denominator / numerator);
-            if(abs(predicted - actual) < diff) {
-                diff = abs(predicted - actual);
-                final_predicted = predicted;
-            }
+        double predicted = r_a;
+        double numerator = 0.0, denominator = 0.0;
+        if(k > (int)similarity_list[user_id].size()) {
+            k = (int)similarity_list[user_id].size();
         }
         
-        return final_predicted;
+        for(auto i = 0; i < k; i++) {
+            double similarity = similarity_list[user_id][i].first;
+            int other_user_id = similarity_list[user_id][i].second;
+            if(is_rating_table_empty[other_user_id][item_id]) {
+                continue;
+            }
+            
+            double r_b = user_avg_ratings[other_user_id];
+            
+            denominator += (similarity * (rating_table[other_user_id][item_id] - r_b));
+            numerator += similarity;
+        }
+        
+        if(!isnan(denominator / numerator)) {
+            predicted += (denominator / numerator);
+        }
+        
+        return predicted;
     };
-     */
     
     vector< tuple<int, int, int> > results;
     for(auto &user: test_data) {
@@ -270,8 +227,18 @@ vector< tuple<int, int, int> > processPrediction(map<int, map<int, int> > &train
         
         for(auto &item: user.second) {
             int item_id = item.first;
+            int k = determineNumK(user_id);
+            int predicted_rate = (int)round(predictRate(user_id, item_id, k));
             
-            results.push_back(make_tuple(user_id, item_id, (int)round(predictRate(user_id, item_id))));
+            if(predicted_rate < 1) {
+                results.push_back(make_tuple(user_id, item_id, 1));
+            }
+            else if(predicted_rate > 5) {
+                results.push_back(make_tuple(user_id, item_id, 5));
+            }
+            else {
+                results.push_back(make_tuple(user_id, item_id, predicted_rate));
+            }
         }
     }
     
@@ -287,3 +254,4 @@ void printResult(vector< tuple<int, int, int> > &results, string &output_path) {
     
     ofs.close();
 }
+
