@@ -52,6 +52,7 @@ map<int, map<int, int> > readData(string &data_path) {
     map<int, map<int, int> > data;
     
     while(true) {
+        /* We read timestamp, but not use it. */
         int user_id, item_id, rating, timestamp;
         ifs >> user_id >> item_id >> rating >> timestamp;
         
@@ -97,7 +98,9 @@ vector< tuple<int, int, int> > processPrediction(map<int, map<int, int> > &train
         max_user_id = max(max_user_id, user.first);
     }
     
-    /* Construct rating table. */
+    /* Above process is to determine maximum user_id and maximum item_id. */
+    
+    /* Construct rating table and its empty check table. */
     vector< vector<double> > rating_table(max_user_id + 1);
     vector< vector<bool> > is_rating_table_empty(max_user_id + 1);
     
@@ -113,30 +116,21 @@ vector< tuple<int, int, int> > processPrediction(map<int, map<int, int> > &train
     vector<double> user_avg_ratings(max_user_id + 1);
     fill(user_avg_ratings.begin(), user_avg_ratings.end(), 0.0);
     
-    /* Get simple average ratings from training data. */
+    /* Assign rating value corresponds to user_id and item_id, and calculate each user's average rating.  */
     for(auto &user: training_data) {
         double sum = 0.0;
         for(auto &item: user.second) {
             sum += (double)item.second;
             
+            /* Assign rating into 2D array and set this place as 'not empty'. */
             rating_table[user.first][item.first] = (double)item.second;
             is_rating_table_empty[user.first][item.first] = false;
         }
         
+        /* Get each user's average value. */
         double avg = sum / (double)user.second.size();
         user_avg_ratings[user.first] = avg;
     }
-    
-    /* Set each user's average rating value into non-rated cell. */
-    /*
-    for(auto i = 1; i <= max_user_id; i++) {
-        for(auto j = 1; j <= max_item_id; j++) {
-            if(is_rating_table_empty[i][j]) {
-                rating_table[i][j] = user_avg_ratings[i];
-            }
-        }
-    }
-     */
     
     /* Similarity calculation function. */
     auto getSimilarity = [&rating_table, &is_rating_table_empty, &item_list](int user_x, int user_y) -> double {
@@ -147,6 +141,7 @@ vector< tuple<int, int, int> > processPrediction(map<int, map<int, int> > &train
         int count_v = 0;
         for(auto &item_id: item_list) {
             if(!is_rating_table_empty[user_x][item_id] && !is_rating_table_empty[user_y][item_id]) {
+                /* First, get average value with rating of each item - if rating exists in both users. */
                 user_x_avg_rate += rating_table[user_x][item_id];
                 user_y_avg_rate += rating_table[user_y][item_id];
                 count_v++;
@@ -158,6 +153,7 @@ vector< tuple<int, int, int> > processPrediction(map<int, map<int, int> > &train
         
         for(auto &item_id: item_list) {
             if(!is_rating_table_empty[user_x][item_id] && !is_rating_table_empty[user_y][item_id]) {
+                /* Calculate similarity. */
                 numerator += ((rating_table[user_x][item_id] - user_x_avg_rate) * (rating_table[user_y][item_id] - user_y_avg_rate));
                 denominator_left += pow(rating_table[user_x][item_id] - user_x_avg_rate, 2);
                 denominator_right += pow(rating_table[user_y][item_id] - user_y_avg_rate, 2);
@@ -171,16 +167,21 @@ vector< tuple<int, int, int> > processPrediction(map<int, map<int, int> > &train
     map<int, vector< pair<double, int> > > similarity_list;
     for(auto i = 0; i <= max_user_id; i++) {
         for(auto j = i + 1; j <= max_user_id; j++) {
+            /* Get similarity. */
             double similarity = getSimilarity(i, j);
+            
+            /* If similarity is a number, push into each user's similarity list. */
             if(!isnan(similarity)) {
                 similarity_list[i].push_back(make_pair(similarity, j));
                 similarity_list[j].push_back(make_pair(similarity, i));
             }
         }
         
+        /* Sort */
         sort(similarity_list[i].rbegin(), similarity_list[i].rend());
     }
     
+    /* This function determines K value which is last index number of similarity_list that has greater than 0. */
     auto determineNumK = [&similarity_list](int user_id) -> int {
         int iteration_count = 0;
         for(auto i = 0; i < (int)similarity_list[user_id].size(); i++) {
@@ -193,10 +194,12 @@ vector< tuple<int, int, int> > processPrediction(map<int, map<int, int> > &train
         return iteration_count;
     };
     
+    /* Rate prediction function. */
     auto predictRate = [&similarity_list, &rating_table, &is_rating_table_empty, &user_avg_ratings](int user_id, int item_id, int k) -> double {
         double r_a = user_avg_ratings[user_id];
         double predicted = r_a;
         double numerator = 0.0, denominator = 0.0;
+        
         if(k > (int)similarity_list[user_id].size()) {
             k = (int)similarity_list[user_id].size();
         }
@@ -221,6 +224,7 @@ vector< tuple<int, int, int> > processPrediction(map<int, map<int, int> > &train
         return predicted;
     };
     
+    /* Store results in here. */
     vector< tuple<int, int, int> > results;
     for(auto &user: test_data) {
         int user_id = user.first;
