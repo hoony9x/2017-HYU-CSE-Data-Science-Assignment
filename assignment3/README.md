@@ -1,8 +1,9 @@
-# Report for Assignment2 - Decision Tree
+# Report for Assignment3 - Clustering
 
 ## 1. Summery of algorithm.
 
-The clustering algorithm I implemented is based on **DBSCAN** algorithm. It follows the following procedure.
+The clustering algorithm I implemented is based on **DBSCAN** algorithm.  
+It follows the following procedure.
 - Read object data from input file.
 - Generate cluster list.
 - Select one unvisited object from data.
