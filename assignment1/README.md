@@ -15,14 +15,14 @@ The Apriori algorithm I implemented follows the following procedure.
 
 This code has three major functions. (Note: L means list of frequent sets.)
 
-### A. getTransactions
+### A. getTransactions()
 
 Read transaction data from a given input file. Since each line represents each transaction,
 we put the elements on the same line into a set, and then manage this set in a vector data structure.
 For example, if you have 1 line, and you have ```1, 3, 4, 5``` there, make it ```{1,3,4,5}``` and put it in the vector data structure. This function returns a list of Transaction data sets.
 Return type is ```vector< set<int> >```
 
-### B. generateFrequentSets
+### B. generateFrequentSets()
 
 Data structure ```vector< map< set<int>, int > > L``` exists.  
 The map stores the frequent set as the first argument and the absolute support count as the
@@ -35,19 +35,19 @@ If the count result satisfies the given minimum support condition, put it in ```
 
 Next, there are three functions. (Expressed in C++11 lambda function and auto type)  
 
-- **hasInfreqSubset**  
+- **hasInfreqSubset()**  
 The first argument is the target set, and the second argument is the list of the frequent set that was created just before.  
 If the size of the given set as the first argument is ```N```, then the ```L``` given as the second argument is ```L[N - 1]```.  
 This function creates one subset of size 1 from the set given as the first argument, and checks to see if the subset exists in the second given argument, ```L```.  
 If it does not exist, the target set means that it contains an infrequent set, and the corresponding set is also an infrequent set.
 
-- **aprioriGenCandidate**  
+- **aprioriGenCandidate()**  
 This function creates a Candidate set to create the next ```L``` based on the most recently created ```L```.  
 In the most recent ```L```, two different sets are extracted and a new set is created by doing Cartesian Product operation.  
 In this case, if the size of the new set is one greater than the size of the existing set, check whether there is frequent set using ```hasInfreqSubset``` defined immediately before. If it is a frequent set, put the new set into the Candidate set.
 Type ```set< set<int> >``` was used to store the Candidate sets.
 
-- **checkSubset**  
+- **checkSubset()**  
 This function is given two arguments. Both are given a set and check whether the. second set is a subset of the first set.
 
 
@@ -63,7 +63,7 @@ there is no frequent set of size ```k```.
 The last for-loop was created to gather all the generated frequent sets in one place.
 
 
-### C. putAssociationRules
+### C. putAssociationRules()
 
 At first we have the ```getAllSubset``` function. This function creates all subsets of a given set when given as an argument. (Except for the empty set.)   
 Next, it is a code that shows how to create an association rule between subset in the corresponding set in each frequent set, and record it in the output file according to the given format.
